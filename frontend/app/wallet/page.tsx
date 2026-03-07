@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, ArrowDownToLine, ArrowUpRight, Info, RefreshCw, Wallet, ExternalLink } from "lucide-react";
-import { handleError } from "@/lib/toast";
+import { AlertCircle, ArrowDownToLine, ArrowUpRight, Info, RefreshCw, Wallet, ExternalLink, Download } from "lucide-react";
+import { handleError, showSuccessToast } from "@/lib/toast";
+import { generateLedgerCsv, downloadCsv } from "@/lib/csvExport";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -77,6 +78,7 @@ export default function WalletPage() {
   });
   const [topUpModalOpen, setTopUpModalOpen] = useState(false);
   const [withdrawalModalOpen, setWithdrawalModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Separate retry function that sets loading state (called from user interactions, not effects)
   const retry = useCallback(() => {
@@ -115,6 +117,63 @@ export default function WalletPage() {
       cancelled = true;
     };
   }, []);
+
+  // Fetch all ledger entries for CSV export
+  const fetchAllLedgerEntries = useCallback(async (): Promise<WalletLedgerEntry[]> => {
+    const allEntries: WalletLedgerEntry[] = [];
+    let cursor: string | null | undefined = null;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await getNgnLedger({
+        cursor: cursor || undefined,
+        limit: 100, // Fetch in batches of 100
+      });
+
+      allEntries.push(...response.entries);
+
+      if (response.nextCursor) {
+        cursor = response.nextCursor;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return allEntries;
+  }, []);
+
+  // Handle CSV export
+  const handleExportCsv = useCallback(async () => {
+    if (isExporting) return;
+
+    setIsExporting(true);
+    try {
+      // Fetch all ledger entries
+      const allEntries = await fetchAllLedgerEntries();
+
+      if (allEntries.length === 0) {
+        showSuccessToast("No ledger entries to export");
+        return;
+      }
+
+      // Generate CSV content
+      const csvContent = generateLedgerCsv(allEntries);
+
+      // Generate filename with current date
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+      const filename = `wallet-ledger-${dateStr}.csv`;
+
+      // Download CSV
+      downloadCsv(csvContent, filename);
+
+      showSuccessToast(`Exported ${allEntries.length} ledger entries to CSV`);
+    } catch (err) {
+      handleError(err, "Failed to export ledger to CSV");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [isExporting, fetchAllLedgerEntries]);
 
   return (
     <main className="min-h-screen bg-background">
@@ -225,15 +284,36 @@ export default function WalletPage() {
         <section className="mt-8">
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold md:text-xl">Recent activity</h2>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-2 border-foreground bg-background font-bold"
-              onClick={retry}
-            >
-              <RefreshCw className="h-4 w-4" />
-              Retry
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportCsv}
+                disabled={isExporting || ledgerState.type !== "success"}
+                className="border-3 border-foreground bg-background font-bold shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(26,26,26,1)] disabled:opacity-50"
+              >
+                {isExporting ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    Download CSV
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-3 border-foreground bg-background font-bold shadow-[4px_4px_0px_0px_rgba(26,26,26,1)] transition-all hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(26,26,26,1)]"
+                onClick={retry}
+              >
+                <RefreshCw className="h-4 w-4" />
+                Retry
+              </Button>
+            </div>
           </div>
 
           <Card className="border-3 border-foreground shadow-[4px_4px_0px_0px_rgba(26,26,26,1)]">
