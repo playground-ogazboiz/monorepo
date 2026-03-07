@@ -72,11 +72,53 @@ export interface StakeFromNgnBalanceResponse extends TxResponse {
   amountNgn?: number;
 }
 
+export interface StakingQuote {
+  quoteId: string;
+  amountNgn: number;
+  estimatedAmountUsdc: string;
+  fxRateNgnPerUsdc: number;
+  feesNgn: number;
+  expiresAt: string;
+  disclaimer: string;
+}
+
+export interface StakeNgnResponse {
+  success: boolean;
+  conversionId?: string;
+  amountUsdc?: string;
+  fxRateNgnPerUsdc?: number;
+  outboxId?: string;
+  txId?: string;
+  status?: string;
+  message: string;
+}
+
 export function stakeFromNgnBalance(amountNgn: number): Promise<StakeFromNgnBalanceResponse> {
   return apiFetch("/api/staking/stake_from_ngn_balance", {
     method: "POST",
     body: JSON.stringify({
       amountNgn
+    })
+  })
+}
+
+export function getStakingQuote(amountNgn: number, paymentRail: string = "bank_transfer"): Promise<StakingQuote> {
+  return apiFetch("/api/staking/quote", {
+    method: "POST",
+    body: JSON.stringify({
+      amountNgn,
+      paymentRail
+    })
+  })
+}
+
+export function stakeNgn(amountNgn: number, externalRefSource: string = "web", externalRef?: string): Promise<StakeNgnResponse> {
+  return apiFetch("/api/staking/stake-ngn", {
+    method: "POST",
+    body: JSON.stringify({
+      amountNgn,
+      externalRefSource,
+      externalRef: externalRef || crypto.randomUUID()
     })
   })
 }
