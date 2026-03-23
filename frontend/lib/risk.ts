@@ -3,11 +3,15 @@ import { apiFetch } from "./api";
 export interface RiskState {
   isFrozen: boolean;
   freezeReason: string | null;
+  deficitNgn: number;
+  updatedAt: string | null;
 }
 
 interface RiskStateResponse {
   isFrozen?: boolean;
   freezeReason?: string | null;
+  deficitNgn?: number;
+  updatedAt?: string;
 }
 
 interface MeResponse {
@@ -24,9 +28,9 @@ export function humanizeFreezeReason(reason?: string | null): string | null {
   if (!trimmed) return null;
 
   const asWords = trimmed
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
+    .replaceAll(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replaceAll(/[_-]+/g, " ")
+    .replaceAll(/\s+/g, " ");
 
   return asWords.charAt(0).toUpperCase() + asWords.slice(1).toLowerCase();
 }
@@ -37,6 +41,8 @@ export async function getRiskState(): Promise<RiskState> {
     return {
       isFrozen: Boolean(risk.isFrozen),
       freezeReason: humanizeFreezeReason(risk.freezeReason),
+      deficitNgn: typeof risk.deficitNgn === 'number' ? risk.deficitNgn : 0,
+      updatedAt: typeof risk.updatedAt === 'string' ? risk.updatedAt : null,
     };
   } catch {
     // Fallback to /api/auth/me when risk endpoint is unavailable.
@@ -47,8 +53,10 @@ export async function getRiskState(): Promise<RiskState> {
     return {
       isFrozen: Boolean(me.user?.isFrozen),
       freezeReason: humanizeFreezeReason(me.user?.freezeReason),
+      deficitNgn: 0,
+      updatedAt: null,
     };
   } catch {
-    return { isFrozen: false, freezeReason: null };
+    return { isFrozen: false, freezeReason: null, deficitNgn: 0, updatedAt: null };
   }
 }
